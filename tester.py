@@ -62,12 +62,13 @@ class Game:
 			)
 		pg.display.flip()
 
-	async def run (self, owner):
-		try: # Does this even return a asyncio.Task instance??
-			return asyncio.wait([
+	def run (self, owner):
+		print('?')
+		try: # Does this even return an asyncio.Task instance??
+			return asyncio.gather(
 				self._eval_events(owner.event_pumper),
 				self._eval_logic()
-				])
+				)
 		except Exception:
 			raise
 		
@@ -108,10 +109,10 @@ class Testris:
 	def run (self):
 		"How to get this to loop?"
 		try:
-			# while True:
-			# self.clock.tick(30)
-			loop.run_until_complete(self.state.run(self))
-			self.state.display(self.screen)
+			while True:
+				loop.run_until_complete(self.state.run(self))
+				self.state.display(self.screen)
+				self.clock.tick(30)
 		except (ExitGame, KeyboardInterrupt):
 			pass
 		finally:
