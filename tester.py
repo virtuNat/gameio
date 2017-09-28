@@ -97,8 +97,7 @@ class Testris:
         pg.quit()
         sys.exit(status)
 
-    @staticmethod
-    def _pump_events ():
+    def _pump_events (self):
         "Prunes commands for the running code to execute."
         while True:
             events = [ ]
