@@ -12,113 +12,114 @@ GLOBAL_CONFIG = [pg.ACTIVEEVENT, pg.KEYUP, pg.KEYDOWN]
 KEY_CONFIG = {pg.K_SPACE: 'clear'}
 
 class ExitGame (Exception):
-	pass
+    "Called to exit the game."
 
 class Grid:
-	"Object Example"
-	def __init__ (self):
-		self.lines = 0
+    "Object Example"
+    def __init__ (self, owner):
+        self.owner = owner
+        self.lines = 0
 
-	async def clear (self):
-		"Tells you it's clearing lines."
-		self.lines = random.randint(1, 4)
-		for line in range(self.lines):
-			await asyncio.sleep(0)
-			print("Clearing line #{}".format(line + 1))
-		self.lines = 0
+    async def clear (self):
+        "Tells you it's clearing lines."
+        self.lines = random.randint(1, 4)
+        print("About to clear {} lines".format(self.lines))
+        for line in range(self.lines):
+            await asyncio.sleep(0)
+            print("Clearing line #{}".format(line + 1))
+        self.lines = 0
+        self.owner.clearing = False
 
 class Game:
-	"Game Instance Example"
-	def __init__ (self):
-		self.grid = Grid()
-		self.clearing = False
-		self.x = 0
+    "Game Instance Example"
+    def __init__ (self):
+        self.grid = Grid(self)
+        self.clearing = False
+        self.x = 0
 
-	async def _eval_events (self, event_pumper):
-		for event in next(event_pumper):
-			if event.type is pg.KEYDOWN:
-				action = KEY_CONFIG[event.key]
-				if action == 'clear':
-					self.clearing = True
+    async def _eval_events (self, event_pumper):
+        for event in next(event_pumper):
+            if event.type is pg.KEYDOWN:
+                action = KEY_CONFIG[event.key]
+                if action == 'clear':
+                    self.clearing = True
 
-	async def _eval_logic (self):
-		"Dummy logic code. Randomly generates a number."
-		if self.clearing:
-			await self.grid.clear()
-			self.clearing = False
-		else:
-			self.x = random.randint(0, 10)
+    async def _eval_logic (self):
+        "Dummy logic code. Randomly generates a number."
+        if self.clearing:
+            await self.grid.clear()
+        else:
+            self.x = random.randint(0, 10)
 
-	def display (self, screen):
-		"Dummy display code. Does nothing but flash a number."
-		surf = pg.Surface(screen.get_size())
-		surf.fill(pg.Color(0x000000FF))
-		screen.blit(surf, (0, 0))
-		screen.blit(
-			pg.font.SysFont(None, 25).render(
-				'{}'.format(self.x), 0, pg.Color(0xFFFFFFFF)
-				),
-			(0, 0)
-			)
-		pg.display.flip()
+    def display (self, screen):
+        "Dummy display code. Does nothing but flash a number."
+        surf = pg.Surface(screen.get_size())
+        surf.fill(pg.Color(0x000000FF))
+        screen.blit(surf, (0, 0))
+        screen.blit(
+            pg.font.SysFont(None, 25).render(
+                '{}'.format(self.x), 0, pg.Color(0xFFFFFFFF)
+                ),
+            (0, 0)
+            )
+        pg.display.flip()
 
-	def run (self, owner):
-		print('?')
-		try: # Does this even return an asyncio.Task instance??
-			return asyncio.gather(
-				self._eval_events(owner.event_pumper),
-				self._eval_logic()
-				)
-		except Exception:
-			raise
-		
+    async def run (self, owner):
+        await self._eval_events(owner.event_pumper)
+        await self._eval_logic()
+        self.display(owner.screen)
+        await asyncio.sleep(1./30)
+        
 class Testris:
-	"Some High-Level Execution thingy? What is this called again?"
+    "Some High-Level Execution thingy? What is this called again?"
 
-	STATES = {'game': Game()}
+    STATES = {'game': Game()}
 
-	pg.init()
-	screen = pg.display.set_mode((800, 600))
-	loop = asyncio.get_event_loop()
-	clock = pg.time.Clock()
+    pg.init()
+    screen = pg.display.set_mode((800, 600))
+    loop = asyncio.get_event_loop()
+    clock = pg.time.Clock()
 
-	def __init__ (self):
-		self.state = 'game'
-		self.event_pumper = self._pump_events()
-		
-	@property
-	def state (self):
-		return self.STATES[self._state]
+    def __init__ (self):
+        self.state = 'game'
+        self.event_pumper = self._pump_events()
+        
+    @property
+    def state (self):
+        return self.STATES[self._state]
 
-	@state.setter
-	def state(self, value):
-		self._state = value
+    @state.setter
+    def state(self, value):
+        self._state = value
 
-	@staticmethod
-	def _pump_events ():
-		"Prunes commands for the running code to execute."
-		while True:
-			events = [ ]
-			for event in pg.event.get():
-				if event.type is pg.QUIT:
-					raise ExitGame
-				elif event.type in GLOBAL_CONFIG:
-					events.append(event)
-			yield events
+    def exit (self, status=0):
+        self.loop.close()
+        pg.quit()
+        sys.exit(status)
 
-	def run (self):
-		"How to get this to loop?"
-		try:
-			while True:
-				loop.run_until_complete(self.state.run(self))
-				self.state.display(self.screen)
-				self.clock.tick(30)
-		except (ExitGame, KeyboardInterrupt):
-			pass
-		finally:
-			self.loop.close()
-			pg.quit()
-			sys.exit()
+    @staticmethod
+    def _pump_events ():
+        "Prunes commands for the running code to execute."
+        while True:
+            events = [ ]
+            for event in pg.event.get():
+                if event.type is pg.QUIT:
+                    self.exit()
+                elif event.type in GLOBAL_CONFIG:
+                    events.append(event)
+            yield events
+
+    def run (self):
+        "How to get this to loop?"
+        try:
+            while True:
+                task = asyncio.ensure_future(self.state.run(self))
+                self.loop.run_until_complete(task)
+        except (ExitGame, KeyboardInterrupt):
+            pass
+        finally:
+            self.exit()
+            
 
 if __name__ == '__main__':
-	Testris().run()
+    Testris().run()
